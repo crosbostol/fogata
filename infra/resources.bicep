@@ -10,6 +10,7 @@ param heartbeatSecret string
 param monthlyHours int
 param sessionHours int
 param idleMinutes int
+param serverCatalogJson string = '[]'
 param vmSize string
 
 var suffix = uniqueString(resourceGroup().id)
@@ -42,7 +43,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           direction: 'Inbound'
           protocol: 'Tcp'
           sourcePortRange: '*'
-          destinationPortRange: '25565'
+          destinationPortRanges: ['25565', '25566']
           sourceAddressPrefix: 'Internet'
           destinationAddressPrefix: '*'
         }
@@ -224,6 +225,7 @@ resource api 'Microsoft.Web/sites@2024-04-01' = {
         { name: 'HEARTBEAT_SECRET', value: heartbeatSecret }
         { name: 'STATE_CONTAINER', value: stateContainer.name }
         { name: 'STATE_BLOB', value: 'state.json' }
+        { name: 'SERVERS_JSON', value: serverCatalogJson }
         { name: 'MAX_MONTHLY_HOURS', value: string(monthlyHours) }
         { name: 'MAX_SESSION_HOURS', value: string(sessionHours) }
         { name: 'IDLE_MINUTES', value: string(idleMinutes) }

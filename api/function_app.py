@@ -12,13 +12,16 @@ from azure.identity import ManagedIdentityCredential
 from azure.storage.blob import BlobServiceClient
 
 from control import (account, initial, public_status, receive_heartbeat, reconcile,
-                     request_start, request_stop, verify_heartbeat, verify_password)
+                     request_start, start_selected, request_stop, verify_heartbeat, verify_password)
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 
 def config():
-    return {"minecraft": os.environ["MINECRAFT_ADDRESS"],
+    servers = json.loads(os.getenv('SERVERS_JSON', '[]'))
+    if not servers:
+        servers = [{'id': 'paper', 'name': 'Mundo habitual', 'address': os.environ['MINECRAFT_ADDRESS']}]
+    return {"servers": servers, "minecraft": os.environ["MINECRAFT_ADDRESS"],
             "panel": os.environ["PANEL_URL"], "limits": {
                 "monthly": float(os.getenv("MAX_MONTHLY_HOURS", "180")),
                 "session": float(os.getenv("MAX_SESSION_HOURS", "8")) * 3600,
@@ -114,7 +117,12 @@ def start(req: func.HttpRequest):
         now, cfg = time.time(), config()
         with state_transaction() as state:
             power = power_state()
-            code, should_start = request_start(state, now, power, cfg["limits"])
+            try:
+                body = req.get_json() if req.get_body() else {}
+                selected = body.get('server', state.get('selectedServer', 'paper'))
+            except (ValueError, AttributeError):
+                return response({'message': 'Seleccion invalida.'}, 400)
+            code, should_start = start_selected(state, now, power, cfg['limits'], selected, cfg['servers'])
             if should_start:
                 try:
                     arm("POST", "start")
@@ -123,6 +131,8 @@ def start(req: func.HttpRequest):
                     state.update(phase="error", message="Azure no confirmó el arranque. Consulta el estado antes de reintentar.")
                     code = 503
             result = public_status(state, now, cfg)
+            if code in {400, 409}:
+                result['message'] = 'Apaga completamente la VM antes de cambiar de servidor.'
         return response(result, code)
     except HttpResponseError:
         return response({"message": "Ya hay otra operación. Reintenta en unos segundos."}, 409)
@@ -168,7 +178,8 @@ def heartbeat(req: func.HttpRequest):
             # A joining player resets idle before evaluating shutdown on this heartbeat.
             perform_tick(state, now, cfg, power)
             result = {"action": "stop" if state["phase"] == "stopping" else "none",
-                      "reason": state["message"], "reasonCode": state.get("stopReason")}
+                      "reason": state["message"], "reasonCode": state.get("stopReason"),
+                      "selectedServer": state.get("selectedServer", "paper")}
         return response(result)
     except (ValueError, TypeError, json.JSONDecodeError):
         return response({"message": "Heartbeat inválido o repetido."}, 400)

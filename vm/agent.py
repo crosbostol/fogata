@@ -113,65 +113,72 @@ def heartbeat(config, payload):
         return json.load(reply)
 
 
+def server_catalog(config):
+    path = Path('/etc/fogata/servers.json')
+    if path.exists():
+        return json.loads(path.read_text())
+    if not config.get('CONTAINER_NAME'):
+        return []
+    return [{'id': 'paper', 'container': config.get('CONTAINER_NAME', ''),
+             'port': int(config.get('MC_PORT', '25565'))}]
+
+
 def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
-    boot_id = Path("/proc/sys/kernel/random/boot_id").read_text().strip()
-    stopping, stop_sent_at, did_start, finished = False, None, False, False
+    boot_id = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
+    selected = None
+    started = False
+    stopping = False
+    sent = set()
     while True:
         try:
             config = environment()
-            container = config.get("CONTAINER_NAME", "")
-            configured = bool(container)
-            running = False
-            inspect_ok = False
-            if configured:
-                state = container_status(container)
-                inspect_ok = True
-                running = state.get("Running", False)
-                if not stopping and not did_start:
-                    if not running:
-                        request_power(container, "start")
-                        running = True
-                    did_start = True
-            players, mc_ready = 0, False
-            if running and not stopping:
+            catalog = server_catalog(config)
+            states = {item['id']: container_status(item['container']) for item in catalog}
+            running = [item for item in catalog if states[item['id']].get('Running')]
+            players, ready = 0, False
+            for item in running:
                 try:
-                    players = minecraft_status(config.get("MC_HOST", "127.0.0.1"),
-                                               int(config.get("MC_PORT", "25565")))
-                    mc_ready = True
+                    count = minecraft_status('127.0.0.1', item['port'])
+                    players += count
+                    if item['id'] == selected: ready = True
                 except (OSError, ValueError, EOFError, KeyError):
                     pass
-            # Ack requires a successfully inspected stopped container, or no configured game.
-            ack = stopping and (not configured or (inspect_ok and not running))
-            payload = {"timestamp": int(time.time()), "bootId": boot_id, "players": players,
-                       "mcReady": mc_ready, "panelReady": panel_ready(
-                           config.get("PANEL_HEALTH_URL", "http://127.0.0.1/")),
-                       "configured": configured, "shutdownAck": ack, "shutdownStarted": stopping}
+            payload = dict(timestamp=int(time.time()), bootId=boot_id, players=players,
+                           serverId=selected or '', mcReady=ready and len(running) == 1,
+                           panelReady=panel_ready(config.get('PANEL_HEALTH_URL', 'http://127.0.0.1/')),
+                           configured=bool(catalog), shutdownAck=stopping and not running,
+                           shutdownStarted=stopping)
             instruction = heartbeat(config, payload)
-            if instruction.get("action") == "stop" and not stopping:
-                if instruction.get("reasonCode") == "idle" and configured and running:
-                    # Recheck after the API round trip; player may have just joined.
-                    try:
-                        if minecraft_status(config.get("MC_HOST", "127.0.0.1"),
-                                            int(config.get("MC_PORT", "25565"))) > 0:
-                            continue
-                    except (OSError, ValueError, EOFError, KeyError):
-                        pass
+            desired = instruction.get('selectedServer', 'paper')
+            if desired not in {item['id'] for item in catalog}:
+                raise ValueError('Selected server is not registered on this node')
+            if instruction.get('action') == 'stop':
+                if instruction.get('reasonCode') == 'idle' and players > 0:
+                    continue
+                if instruction.get('reasonCode') == 'idle':
+                    # Recheck after the network round trip before committing a close.
+                    if any(minecraft_status('127.0.0.1', item['port']) > 0 for item in running):
+                        continue
                 stopping = True
-            if stopping and configured and running and stop_sent_at is None:
-                request_power(container, "stop")
-                stop_sent_at = time.time()
-                logging.info("Graceful Minecraft stop requested through Wings")
-            if stopping and stop_sent_at and time.time() - stop_sent_at > 180 and running:
-                logging.error("Minecraft still running; no forced container kill. Controller may deallocate after its emergency deadline.")
-            if ack and not finished:
-                logging.info("Minecraft stopped; waiting for Azure deallocation")
-                finished = True
+            if stopping:
+                for item in running:
+                    if item['id'] not in sent:
+                        request_power(item['container'], 'stop')
+                        sent.add(item['id'])
+            elif not started:
+                selected = desired
+                target = next(item for item in catalog if item['id'] == selected)
+                if not running:
+                    request_power(target['container'], 'start')
+                    started = True
+                elif any(item['id'] == selected for item in running):
+                    started = True
+            # Never restart a server deliberately stopped in Pelican in a loop.
         except Exception as error:
-            # Never log config/body/signature or HTTP response body containing credentials.
-            logging.warning("Agent retry: %s", type(error).__name__)
-        time.sleep(15 if stopping else 30)
+            logging.warning('Agent retry: %s', type(error).__name__)
+        time.sleep(15 if stopping else 20)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

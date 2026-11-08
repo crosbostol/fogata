@@ -26,6 +26,7 @@ class Element {
   setAttribute(name, value) { this.attrs[name] = value; }
   removeAttribute(name) { delete this.attrs[name]; }
   append(child) { this.children.push(child); }
+  replaceChildren(...children) { this.children = children; }
   focus() { this.focused = true; }
   async trigger(name) { return this.listeners[name]?.({ preventDefault() {} }); }
 }
@@ -231,6 +232,15 @@ test('campfire and runner interactions never call Azure', async () => {
 });
 
 const { ClickRound, Runner } = require('../games.js');
+test('the selector sends the chosen server and locks while starting', async () => {
+  const ui = app({ response: url => ({ phase: url.endsWith('/start') ? 'starting' : 'off', selectedServer:'paper', servers:[{id:'paper',name:'Paper'},{id:'deceasedcraft',name:'DeceasedCraft'}] }) });
+  await login(ui);
+  assert.equal(ui.element('server-select').disabled, false);
+  ui.element('server-select').value = 'deceasedcraft';
+  await ui.element('start-button').trigger('click');
+  assert.equal(JSON.parse(ui.calls.at(-1).options.body).server, 'deceasedcraft');
+  assert.equal(ui.element('server-select').disabled, true);
+});
 test('an older status poll cannot replace a confirmed shutdown with ready', async () => {
   let finishPoll;
   let statusCalls = 0;

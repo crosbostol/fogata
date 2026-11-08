@@ -26,6 +26,20 @@ class Socket:
 
 
 class VmTests(unittest.TestCase):
+    def test_agent_starts_only_selected_container(self):
+        catalog = [{'id':'paper','container':'a','port':25565},{'id':'deceasedcraft','container':'b','port':25566}]
+        with patch.object(agent, 'environment', return_value={}), patch.object(agent, 'server_catalog', return_value=catalog), patch.object(agent, 'container_status', return_value={'Running':False}), patch.object(agent, 'panel_ready', return_value=True), patch.object(agent, 'heartbeat', return_value={'selectedServer':'deceasedcraft','action':'none'}), patch.object(agent, 'request_power') as power, patch.object(agent.Path, 'read_text', return_value='boot'), patch.object(agent.time, 'sleep', side_effect=StopIteration):
+            with self.assertRaises(StopIteration):agent.main()
+            power.assert_called_once_with('b','start')
+
+    def test_agent_shutdown_counts_and_closes_every_running_server(self):
+        catalog = [{'id':'paper','container':'a','port':25565},{'id':'deceasedcraft','container':'b','port':25566}]
+        with patch.object(agent, 'environment', return_value={}), patch.object(agent, 'server_catalog', return_value=catalog), patch.object(agent, 'container_status', return_value={'Running':True}), patch.object(agent, 'minecraft_status', return_value=2), patch.object(agent, 'panel_ready', return_value=True), patch.object(agent, 'heartbeat', return_value={'selectedServer':'paper','action':'stop'}) as hb, patch.object(agent, 'request_power') as power, patch.object(agent.Path, 'read_text', return_value='boot'), patch.object(agent.time, 'sleep', side_effect=StopIteration):
+            with self.assertRaises(StopIteration):agent.main()
+            self.assertEqual(hb.call_args.args[1]['players'],4)
+            self.assertFalse(hb.call_args.args[1]['shutdownAck'])
+            self.assertEqual(power.call_count,2)
+
     def test_status_packet_counts_real_players(self):
         payload = json.dumps({"players": {"online": 4}}).encode()
         packet = b"\x00" + agent.varint(len(payload)) + payload

@@ -13,6 +13,7 @@ param heartbeatSecret string
 param monthlyHours int = 180
 param sessionHours int = 8
 param idleMinutes int = 15
+param serverCatalogJson string = '[]'
 param vmSize string = 'Standard_D2as_v7'
 
 resource group 'Microsoft.Resources/resourceGroups@2024-03-01' = {
@@ -34,6 +35,7 @@ module resources './resources.bicep' = {
     monthlyHours: monthlyHours
     sessionHours: sessionHours
     idleMinutes: idleMinutes
+    serverCatalogJson: serverCatalogJson
     vmSize: vmSize
   }
 }

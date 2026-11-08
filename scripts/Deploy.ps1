@@ -9,6 +9,7 @@ param(
     [ValidateRange(1,425)][int]$MonthlyHours = 180,
     [ValidateRange(1,24)][int]$SessionHours = 8,
     [ValidateRange(5,60)][int]$IdleMinutes = 15,
+    [string]$ServerCatalogPath,
     [switch]$Apply,
     [switch]$GeneratePortalPassword,
     [switch]$AcceptMinecraftEula,
@@ -83,10 +84,13 @@ if ($Apply) {
     finally { $sha.Dispose(); $plain = $null; $securePassword = $null }
 }
 $null = New-Item -ItemType Directory -Path $temporaryDirectory
+$catalogFile = if ($ServerCatalogPath) { $ServerCatalogPath } else { Join-Path $local 'server-catalog.json' }
+$catalogJson = if (Test-Path -LiteralPath $catalogFile) { (Get-Content -Raw -LiteralPath $catalogFile | ConvertFrom-Json | ConvertTo-Json -Compress -Depth 6) } else { '[]' }
 $parameters = @{
     '$schema' = 'https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#'
     contentVersion = '1.0.0.0'
     parameters = @{
+        serverCatalogJson = @{value=$catalogJson}
         name = @{value=$Name}; location = @{value=$Location}; adminCidr = @{value=$AdminCidr}
         sshPublicKey = @{value=$publicKey}; portalPasswordHash = @{value=$passwordHash}
         heartbeatSecret = @{value=$heartbeatSecret}; monthlyHours = @{value=$MonthlyHours}

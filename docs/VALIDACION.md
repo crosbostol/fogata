@@ -29,6 +29,19 @@ Actualización verificada el 7 de noviembre de 2026, hora de Chile:
 
 La herramienta de navegador no obtuvo permiso para abrir la vista local, por lo que quedó pendiente la revisión visual y de interacción en un navegador real, incluyendo móvil y movimiento reducido. Las comprobaciones de DOM simulado no sustituyen esa revisión. No se implementó modo mantenimiento ni se cambió el apagado automático existente.
 
+## Actualización: selección exclusiva de servidores
+
+El 8 de noviembre de 2026 se importó el paquete de servidor DeceasedCraft 5.10.17, verificando su archivo SHA256 antes de extraerlo. Forge 47.4.0 se instaló con Java 17; el límite de Pelican es 6144 MiB y el heap máximo 5120 MiB. Se conservaron el tamaño de la VM y el mundo Paper. Se guardaron respaldos privados del mundo, base del panel y agente anteriores.
+
+- 39 pruebas Python, 16 de portal/juegos y 8 de preflight aprobadas (63 en total); compilación Bicep, sintaxis PowerShell/JavaScript y lint PHP de los helpers verificados.
+- Arranque real de DeceasedCraft completado y estado `ready` confirmado por heartbeat. Una muestra en reposo consumió aproximadamente 3,9 GiB dentro del límite efectivo de Docker de 6,3 GiB (incluye margen de Wings).
+- Se comprobó el bloqueo compartido: otro proceso `flock` terminó con código 1 mientras el Minecraft activo mantenía el permiso, sin ejecutar una segunda JVM.
+- La API rechazó con 409 elegir otro servidor mientras la VM estaba activa. Tras cierre y desasignación se pudo seleccionar Paper, cargar el mundo existente y volver a cerrarlo.
+- El ciclo terminó volviendo a seleccionar DeceasedCraft desde apagado y recuperando su mundo recién creado; el portal confirmó `ready` de nuevo. Se comprobó que solo el contenedor seleccionado estaba ejecutándose.
+- CORS aceptó POST con `content-type` y `x-portal-password`; los archivos web publicados coincidieron con las fuentes locales. El plazo temporal de instalación se restauró a 15 minutos.
+
+No se hizo una partida real del modpack, ni pruebas con jugadores, hordas o generación intensiva de ciudades. El arranque exitoso por debajo de la RAM mínima publicada no demuestra capacidad bajo carga. El chat de voz del pack no está expuesto; el propietario usa Discord. La revisión visual del selector sigue pendiente; el navegador automatizado no tenía permiso para la vista local en la prueba anterior.
+
 ## Límites de la prueba inicial
 
 No se inició sesión con una cuenta Microsoft/Minecraft real ni se evaluó una partida con jugadores simultáneos. El propietario debe comprobar su entrada desde Minecraft Java 26.3, consola y gestor de archivos del panel en su navegador. El tiempo de arranque puede variar según la asignación de Azure y el mundo. No se configuró una programación automática de backups del mundo; revisar la operación de backups antes de usarlo como mundo importante.

@@ -99,6 +99,8 @@ SSH se mantiene restringido al CIDR del administrador y usa clave pública. La c
 
 ## Uso diario
 
+Si hay más de un servidor registrado, elige en Fogata cuál iniciar antes de encender la VM. Para cambiar, espera a que Guardar y apagar termine y vuelva a Apagado. El [procedimiento de modpacks](MODPACKS.md) explica el catálogo, el bloqueo compartido y cómo importar otro paquete.
+
 Abre el portal, introduce la contraseña y pulsa Encender. Puedes cerrar la pestaña; el controlador continúa supervisando. El servidor se apaga cuando corresponde aunque ya nadie tenga la web abierta. El límite de sesión de ocho horas y el mensual también se aplican si todavía hay jugadores. La contraseña compartida da acceso al encendido; no debe coincidir con la contraseña administradora de Pelican.
 
 Para terminar antes, usa **Guardar y apagar** en Fogata y confirma. El aviso indica los jugadores del último estado consultado; otros pueden entrar después. La orden cierra la partida aunque haya jugadores. El agente pide el cierre a Wings, espera que termine Minecraft y confirma al controlador antes de desasignar la VM. El portal muestra Apagando hasta que Azure confirme la desasignación. Repetir la orden no reinicia el plazo. Si el agente falla, sigue aplicando el plazo de emergencia documentado en [ARQUITECTURA.md](ARQUITECTURA.md); no se garantiza el guardado en ese caso.

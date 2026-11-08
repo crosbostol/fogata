@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "api"))
 from control import (account, initial, month_key, public_status, receive_heartbeat,
-                     reconcile, request_start, request_stop, used_hours, verify_heartbeat, verify_password)
+                     reconcile, request_start, start_selected, request_stop, used_hours, verify_heartbeat, verify_password)
 
 LIMITS = {"monthly": 180, "session": 28800, "idle": 900, "boot": 900,
           "heartbeat": 180, "emergency": 300}
@@ -39,6 +39,15 @@ class LifecycleTests(unittest.TestCase):
         self.running()
         self.assertEqual(request_start(self.state, NOW + 61, "running", LIMITS), (200, False))
         self.assertEqual(self.state["startedAt"], NOW)
+
+    def test_selection_is_locked_until_vm_deallocated(self):
+        catalog = [{'id': 'paper'}, {'id': 'deceasedcraft'}]
+        self.running()
+        self.assertEqual(start_selected(self.state, NOW+61, 'running', LIMITS, 'deceasedcraft', catalog), (409, False))
+        self.assertEqual(self.state.get('selectedServer', 'paper'), 'paper')
+        self.assertEqual(start_selected(self.state, NOW+62, 'deallocated', LIMITS, 'invalid', catalog), (400, False))
+        self.assertEqual(start_selected(self.state, NOW+63, 'deallocated', LIMITS, 'deceasedcraft', catalog), (202, True))
+        self.assertEqual(self.state['selectedServer'], 'deceasedcraft')
 
     def test_stop_rejects_start(self):
         self.running()

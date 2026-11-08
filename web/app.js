@@ -68,7 +68,7 @@
     };
   }
 
-  async function api(path, method = "GET") {
+  async function api(path, method = "GET", payload = null) {
     if (demo) {
       if (path === "start" && (!demoStartedAt || demoStoppedAt)) { demoStartedAt = Date.now(); demoStoppedAt = null; }
       if (path === "stop" && !demoStoppedAt) demoStoppedAt = Date.now();
@@ -80,7 +80,8 @@
     try {
       const response = await fetch(`${base}/api/${path}`, {
         method,
-        headers: { "X-Portal-Password": password, "Accept": "application/json" },
+        body: payload ? JSON.stringify(payload) : undefined,
+        headers: { "X-Portal-Password": password, "Accept": "application/json", "Content-Type": "application/json" },
         cache: "no-store",
         credentials: "omit",
         signal: controller.signal,
@@ -138,6 +139,18 @@
     $("status-badge").dataset.phase = phase;
     $("state-title").textContent = title;
     $("state-copy").textContent = typeof state.message === "string" && state.message ? state.message : description;
+    const choices = state.servers || [{ id: 'paper', name: 'Mundo habitual' }];
+    const ids = choices.map(item => item.id).join(',');
+    if ($("server-select").dataset.catalog !== ids) {
+      $("server-select").replaceChildren(...choices.map(item => {
+        const option = document.createElement('option');
+        option.value = item.id; option.textContent = item.name; return option;
+      }));
+      $("server-select").dataset.catalog = ids;
+      $("server-select").value = state.selectedServer || 'paper';
+    }
+    $("server-select").disabled = requesting || !['off', 'blocked'].includes(phase);
+    if (phase !== 'off') $("server-select").value = state.selectedServer || 'paper';
     const current = stageOrder.indexOf(phase);
     document.querySelectorAll("[data-stage]").forEach((item, index) => {
       item.classList.toggle("done", current >= 0 && (index < current || phase === "ready"));
@@ -246,7 +259,7 @@
     $("start-button").disabled = true;
     notice("");
     try {
-      const state = await api("start", "POST");
+      const state = await api("start", "POST", { server: $("server-select").value || "paper" });
       if (authenticated && generation === pollingGeneration) render(state);
     }
     catch (error) { if (authenticated && generation === pollingGeneration) handleError(error); }

@@ -17,3 +17,5 @@
 @media(max-width:950px){.games-content{grid-template-columns:1fr 1fr}.runner-card{grid-column:1/-1}.runner-track{max-width:540px;align-self:center}.runner-card .runner-controls{max-width:540px;width:100%;align-self:center}}
 @media(max-width:640px){.landscape{display:block;width:230px;max-width:100%;margin:22px auto 0}.landscape-caption{font-size:7px;padding-top:12px;letter-spacing:1px}.game-section summary{padding:21px}.games-content{grid-template-columns:1fr;padding:0 17px 17px;gap:14px}.games-footnote{padding:0 21px 20px}.runner-card{grid-column:auto}.game-grid{width:165px}.games-title{font-size:20px}}
 @media(prefers-reduced-motion:reduce){.campfire *, .accordion-chevron{animation:none!important;transition:none!important}.fire-glow{opacity:.15}.campfire.stoked .flame{transform:scale(1.1,1.25)}.ember{opacity:.6}}
+
+#server-select{width:100%;padding:12px;background:#111d16;color:#eef1e9;border:1px solid #41513f;border-radius:6px;font:inherit}#server-select:disabled{opacity:.65}

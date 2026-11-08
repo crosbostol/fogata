@@ -75,6 +75,18 @@ def request_start(state, now, power, limits):
     return 202, True
 
 
+def start_selected(state, now, power, limits, selected, catalog):
+    if not isinstance(selected, str) or selected not in {item['id'] for item in catalog}:
+        return 400, False
+    current = state.get('selectedServer', 'paper')
+    if power != 'deallocated' and selected != current:
+        return 409, False
+    code, start = request_start(state, now, power, limits)
+    if code < 300:
+        state['selectedServer'] = selected
+    return code, start
+
+
 def request_stop(state, now, power):
     """Request the existing graceful shutdown protocol; never cut VM power here."""
     account(state, now, power)
@@ -129,6 +141,9 @@ def receive_heartbeat(state, payload, now):
                          message="Entró un jugador; apagado por inactividad cancelado.")
         else:
             return
+    if payload.get('serverId', 'paper') != state.get('selectedServer', 'paper'):
+        payload = dict(payload, mcReady=False)
+        state['heartbeat'] = payload
     if payload["configured"] and payload["mcReady"] and payload["panelReady"]:
         state["phase"] = "ready"
         state["message"] = "Minecraft y Pelican están listos."
@@ -197,8 +212,11 @@ def public_status(state, now, config):
     phase = state["phase"]
     if phase == "ready" and not fresh:
         phase = "booting"
-    return {"phase": phase, "players": heartbeat.get("players", 0) if fresh else 0,
+    catalog = config.get('servers', [{'id': 'paper', 'name': 'Mundo habitual', 'address': config['minecraft']}])
+    selected = state.get('selectedServer', 'paper')
+    chosen = next((item for item in catalog if item['id'] == selected), catalog[0])
+    return {"selectedServer": selected, "servers": catalog, "phase": phase, "players": heartbeat.get("players", 0) if fresh else 0,
             "usedHours": round(used_hours(state, now), 3),
             "maxHours": config["limits"]["monthly"],
-            "minecraftAddress": config["minecraft"], "panelUrl": config["panel"],
+            "minecraftAddress": chosen["address"], "panelUrl": config["panel"],
             "message": state["message"], "updatedAt": state.get("lastAccountAt", now)}
