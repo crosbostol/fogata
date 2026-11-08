@@ -12,7 +12,7 @@ from azure.identity import ManagedIdentityCredential
 from azure.storage.blob import BlobServiceClient
 
 from control import (account, initial, public_status, receive_heartbeat, reconcile,
-                     request_start, verify_heartbeat, verify_password)
+                     request_start, request_stop, verify_heartbeat, verify_password)
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -129,6 +129,25 @@ def start(req: func.HttpRequest):
     except Exception:
         logging.exception("Start failed")
         return response({"message": "No se pudo solicitar el encendido."}, 503)
+
+
+@app.route(route="stop", methods=["POST"])
+def stop(req: func.HttpRequest):
+    if not authorized(req):
+        return response({"message": "Contraseña incorrecta."}, 401)
+    try:
+        now, cfg = time.time(), config()
+        with state_transaction() as state:
+            code = request_stop(state, now, power_state())
+            result = public_status(state, now, cfg)
+            if code == 409:
+                result["message"] = "Azure aún no confirma el estado. Consulta de nuevo antes de apagar."
+        return response(result, code)
+    except HttpResponseError:
+        return response({"message": "Control ocupado. Reintenta en unos segundos."}, 409)
+    except Exception:
+        logging.exception("Stop failed")
+        return response({"message": "No se pudo confirmar el apagado. Consulta el estado."}, 503)
 
 
 @app.route(route="heartbeat", methods=["POST"])

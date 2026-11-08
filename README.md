@@ -1,6 +1,6 @@
 # Fogata · Minecraft en Azure bajo demanda
 
-Una URL, una contraseña compartida y un botón para encender tu servidor. Mientras arranca, el portal muestra etapas verificadas y un minijuego local; cuando Minecraft y Pelican están listos, ofrece redirigir al panel. Sin una VM de entrada permanente, sin dominio comprado y sin Docker instalado en el PC del administrador.
+Una URL, una contraseña compartida y un botón para encender tu servidor. Mientras arranca, el portal muestra etapas verificadas; cuando Minecraft y Pelican están listos, ofrece redirigir al panel. **Guardar y apagar** solicita el cierre ordenado del juego y la desasignación de la VM. Los tres minijuegos locales están en un acordeón, disponibles en cualquier estado del servidor. Sin una VM de entrada permanente, sin dominio comprado y sin Docker instalado en el PC del administrador.
 
 Cada persona despliega su propia copia y paga su consumo de Azure. Este repositorio no distribuye Minecraft ni reemplaza sus licencias.
 

@@ -78,6 +78,21 @@ class HttpTests(unittest.TestCase):
         self.assertEqual(reply.status_code, 401)
         self.cloud.assert_not_called()
 
+    def test_manual_stop_requires_auth_and_never_cuts_power_directly(self):
+        self.assertEqual(api.stop(self.request("POST", "stop", auth=False)).status_code, 401)
+        self.state.update(phase="ready", lastPower="running", startedAt=9990)
+        with patch.object(api, "power_state", return_value="running"):
+            reply = api.stop(self.request("POST", "stop"))
+        self.assertEqual(reply.status_code, 202)
+        self.assertEqual(json.loads(reply.get_body())["phase"], "stopping")
+        self.assertEqual(self.state["stopReason"], "manual")
+        self.cloud.assert_not_called()
+
+    def test_stop_on_off_vm_does_not_start_or_deallocate(self):
+        self.assertEqual(api.stop(self.request("POST", "stop")).status_code, 200)
+        self.assertEqual(self.state["phase"], "off")
+        self.cloud.assert_not_called()
+
     def test_signed_heartbeat_reports_ready_after_real_health(self):
         self.power.stop()
         patcher = patch.object(api, "power_state", return_value="running")
@@ -95,4 +110,4 @@ class HttpTests(unittest.TestCase):
 
     def test_sdk_registers_all_triggers(self):
         self.assertEqual({f.get_function_name() for f in api.app.get_functions()},
-                         {"start", "status", "heartbeat", "watchdog"})
+                         {"start", "stop", "status", "heartbeat", "watchdog"})

@@ -10,6 +10,8 @@ class Element {
   constructor() {
     this.hidden = false;
     this.disabled = false;
+    this.open = false;
+    this.style = {};
     this.value = '';
     this.type = 'password';
     this.textContent = '';
@@ -18,7 +20,7 @@ class Element {
     this.listeners = {};
     this.children = [];
     this.firstChild = { textContent: '' };
-    this.classList = { toggle() {}, remove() {} };
+    this.classList = { toggle() {}, remove() {}, add() {} };
   }
   addEventListener(name, fn) { this.listeners[name] = fn; }
   setAttribute(name, value) { this.attrs[name] = value; }
@@ -36,8 +38,14 @@ function app({ demo = false, response = () => ({ phase: 'off' }) } = {}) {
   const navigations = [];
   const windowEvents = {};
   let nextId = 1;
+  let clock = 100000;
+  class FakeDate extends Date { static now() { return clock; } }
   const element = (id) => {
-    if (!elements.has(id)) elements.set(id, new Element());
+    if (!elements.has(id)) {
+      const item = new Element();
+      if (['stop-confirmation','stop-button','dashboard','demo-banner','redirect-notice'].includes(id)) item.hidden = true;
+      elements.set(id, item);
+    }
     return elements.get(id);
   };
   const context = {
@@ -48,6 +56,7 @@ function app({ demo = false, response = () => ({ phase: 'off' }) } = {}) {
     },
     document: {
       getElementById: element,
+      addEventListener() {},
       querySelectorAll: () => [new Element(), new Element(), new Element(), new Element()],
       createElement: () => new Element(),
     },
@@ -57,14 +66,18 @@ function app({ demo = false, response = () => ({ phase: 'off' }) } = {}) {
       const body = await response(url, options);
       return { ok: !body.httpStatus || body.httpStatus < 400, status: body.httpStatus || 200, json: async () => body };
     },
+    Date: FakeDate, performance: { now: () => clock },
+    requestAnimationFrame: () => 123, cancelAnimationFrame() {},
     URL, AbortController, console,
     setTimeout: (fn, delay) => { const id = nextId++; timeouts.set(id, { fn, delay }); return id; },
     clearTimeout: (id) => timeouts.delete(id),
     setInterval: (fn, delay) => { const id = nextId++; intervals.set(id, { fn, delay }); return id; },
     clearInterval: (id) => intervals.delete(id),
   };
-  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8'), context);
-  return { element, calls, timeouts, intervals, navigations, windowEvents };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'games.js'), 'utf8'), context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'app.js'), 'utf8'), context);
+  return { element, calls, timeouts, intervals, navigations, windowEvents, advance: (ms) => { clock += ms; } };
 }
 
 async function login(ui) {
@@ -106,11 +119,11 @@ test('a rejected password leaves no polling or dashboard session', async () => {
 });
 
 test('budget limit disables further starts and exposes API message as text', async () => {
-  const ui = app({ response: (url) => url.endsWith('/start') ? { httpStatus: 429, phase: 'blocked', message: 'Límite mensual alcanzado' } : { phase: 'off' } });
+  const ui = app({ response: (url) => url.endsWith('/start') ? { httpStatus: 429, phase: 'blocked', message: 'LÃ­mite mensual alcanzado' } : { phase: 'off' } });
   await login(ui);
   await ui.element('start-button').trigger('click');
   assert.equal(ui.element('start-button').disabled, true);
-  assert.equal(ui.element('notice').textContent, 'Límite mensual alcanzado');
+  assert.equal(ui.element('notice').textContent, 'LÃ­mite mensual alcanzado');
 });
 
 test('ready status redirects only to a valid panel URL after a cancelable countdown', async () => {
@@ -160,4 +173,98 @@ test('logging out while a start request is in flight prevents later redirect', a
   assert.equal(ui.element('dashboard').hidden, true);
   assert.equal(ui.intervals.size, 0);
   assert.equal(ui.navigations.length, 0);
+});
+
+
+test('manual shutdown requires confirmation, warns about players, and sends one POST', async () => {
+  const ui = app({ response: (url) => ({ phase: url.endsWith('/stop') ? 'stopping' : 'ready', players: 3 }) });
+  await login(ui);
+  await ui.element('stop-button').trigger('click');
+  assert.equal(ui.calls.length, 1);
+  assert.match(ui.element('stop-warning').textContent, /3 jugador/);
+  await ui.element('cancel-stop').trigger('click');
+  await ui.element('confirm-stop').trigger('click');
+  assert.equal(ui.calls.length, 1);
+  await ui.element('stop-button').trigger('click');
+  await ui.element('confirm-stop').trigger('click');
+  assert.equal(ui.calls.at(-1).url, 'https://example.azurewebsites.net/api/stop');
+  assert.equal(ui.calls.at(-1).options.method, 'POST');
+  assert.equal(ui.element('status-badge').textContent, 'Apagando');
+  assert.equal(ui.element('stop-button').hidden, true);
+});
+
+test('games remain available while ready, opening them cancels redirection', async () => {
+  const ui = app({ response: () => ({ phase: 'ready', panelUrl: 'https://panel.example.test/' }) });
+  await login(ui);
+  assert.equal(ui.element('games-accordion').open, false);
+  assert.equal(ui.element('game-section').hidden, false);
+  ui.element('games-accordion').open = true;
+  await ui.element('games-accordion').trigger('toggle');
+  assert.equal(ui.intervals.size, 0);
+  assert.equal(ui.calls.length, 1);
+});
+
+test('CPS ends after 15 seconds and closing the accordion stops local timers', async () => {
+  const ui = app();
+  await ui.element('cps-start').trigger('click');
+  for (let i = 0; i < 30; i++) await ui.element('cps-target').trigger('click');
+  ui.advance(15000);
+  [...ui.intervals.values()][0].fn();
+  assert.match(ui.element('cps-score').textContent, /30 clics.*2,00 CPS/);
+  assert.equal(ui.element('cps-target').disabled, true);
+  await ui.element('cps-start').trigger('click');
+  await ui.element('games-accordion').trigger('toggle');
+  assert.equal(ui.intervals.size, 0);
+  assert.equal(ui.calls.length, 0);
+});
+
+test('campfire and runner interactions never call Azure', async () => {
+  const ui = app();
+  await ui.element('campfire').trigger('click');
+  await ui.element('runner-start').trigger('click');
+  await ui.element('runner-track').trigger('click');
+  assert.equal(ui.calls.length, 0);
+  assert.match(ui.element('runner-score').textContent, /Salta/);
+  ui.windowEvents.pagehide();
+  assert.equal(ui.intervals.size, 0);
+  assert.equal(ui.timeouts.size, 0);
+});
+
+const { ClickRound, Runner } = require('../games.js');
+test('an older status poll cannot replace a confirmed shutdown with ready', async () => {
+  let finishPoll;
+  let statusCalls = 0;
+  const ui = app({ response: (url) => {
+    if (url.endsWith('/stop')) return { phase: 'stopping' };
+    statusCalls++;
+    return statusCalls === 1 ? { phase: 'ready' } : new Promise(resolve => { finishPoll = resolve; });
+  } });
+  await login(ui);
+  const pending = [...ui.timeouts.values()].find(timer => timer.delay === 12000).fn();
+  await ui.element('stop-button').trigger('click');
+  await ui.element('confirm-stop').trigger('click');
+  finishPoll({ phase: 'ready', panelUrl: 'https://panel.example.test/' });
+  await pending;
+  assert.equal(ui.element('status-badge').textContent, 'Apagando');
+  assert.equal(ui.intervals.size, 0);
+});
+
+test('CPS rejects clicks at or after the exact deadline', () => {
+  const round = new ClickRound(1000);
+  round.click(1000); round.click(15999); round.click(16000); round.click(20000);
+  assert.equal(round.result(16000).clicks, 2);
+  assert.equal(round.result(17000).remaining, 0);
+  assert.equal(round.result(17000).cps, 2 / 15);
+});
+test('runner collides with a log on the ground and clears it with a timed jump', () => {
+  const collision = new Runner(() => 0);
+  collision.obstacle = 14;
+  collision.step(0.02);
+  assert.equal(collision.over, true);
+  const jumping = new Runner(() => 0);
+  jumping.obstacle = 24;
+  jumping.jump();
+  for (let i = 0; i < 65; i++) jumping.step(0.01);
+  assert.equal(jumping.over, false);
+  assert.ok(jumping.obstacle < 8);
 });

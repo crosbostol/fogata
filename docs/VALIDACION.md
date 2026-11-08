@@ -16,7 +16,20 @@ Prueba realizada el 7 de noviembre de 2026 con Central US, D2as_v7 (2 vCPU / 8 G
 
 Se guardaron respaldos privados de la configuración del panel, Wings y agente fuera de Git. Los identificadores y secretos de esta instalación no forman parte de este documento portátil.
 
-## Límites de la prueba
+## Actualización: apagado manual y juegos
+
+Actualización verificada el 7 de noviembre de 2026, hora de Chile:
+
+- 36 pruebas Python, 15 del portal y sus juegos y 8 escenarios de preflight aprobados: 59 en total. Se verificaron también sintaxis JavaScript, referencias HTML y el acordeón cerrado inicialmente.
+- Portal y API publicados sin recrear infraestructura ni modificar la configuración del juego. Los cuatro archivos web actualizados respondieron HTTP 200 y coincidieron byte por byte con las fuentes locales. La configuración real del portal se conservó.
+- `POST /api/stop` sin contraseña devolvió 401. La petición autenticada pasó a `stopping` sin desasignar directamente desde el endpoint.
+- Antes de la prueba se confirmó cero jugadores tanto en la API como consultando Minecraft. Se observó el cierre de escritura de Overworld, Nether y End y la salida del contenedor; después Azure confirmó `PowerState/deallocated`.
+- El siguiente encendido mediante Fogata volvió a `ready`. Paper completó la carga; el mundo importado y los datos de jugador seguían presentes. No se verificó visualmente el contenido dentro de Minecraft en esta prueba.
+- Las pruebas locales cubren confirmación/cancelación de apagado, solicitudes repetidas, espera de confirmación de cierre, protección frente a respuestas antiguas de estado, límite exacto de 15 segundos del contador y colisiones/saltos del corredor. Los juegos y la fogata interactiva no hacen llamadas a Azure.
+
+La herramienta de navegador no obtuvo permiso para abrir la vista local, por lo que quedó pendiente la revisión visual y de interacción en un navegador real, incluyendo móvil y movimiento reducido. Las comprobaciones de DOM simulado no sustituyen esa revisión. No se implementó modo mantenimiento ni se cambió el apagado automático existente.
+
+## Límites de la prueba inicial
 
 No se inició sesión con una cuenta Microsoft/Minecraft real ni se evaluó una partida con jugadores simultáneos. El propietario debe comprobar su entrada desde Minecraft Java 26.3, consola y gestor de archivos del panel en su navegador. El tiempo de arranque puede variar según la asignación de Azure y el mundo. No se configuró una programación automática de backups del mundo; revisar la operación de backups antes de usarlo como mundo importante.
 

@@ -83,7 +83,7 @@ Como panel y Wings comparten VM, el instalador resuelve ese hostname a `127.0.0.
 
 El helper opcional `vm/setup-demo.php` permite a un asistente preparar una instalación nueva usando los servicios de la versión instalada de Pelican. Recibe los datos por stdin, no por argumentos. Su cuenta de demostración es `admin`, con correo de marcador `admin@fogata.invalid`; no configura envío de correo. Guarda la contraseña generada en un gestor y sustituye el correo cuando configures correo real. Para una instalación que ya contiene datos, conserva el procedimiento manual y revisa la compatibilidad antes de usar el helper.
 
-SSH se mantiene restringido al CIDR del administrador y usa clave pública. El portal compartido solo autoriza encendido; Pelican tiene su propio acceso. Si los jugadores solo necesitan encender y jugar, basta con compartir el portal y `IP:25565`; no necesitan la cuenta administradora de Pelican. Si compartes el panel, crea permisos adecuados en Pelican y no reutilices la contraseña del portal.
+SSH se mantiene restringido al CIDR del administrador y usa clave pública. La contraseña compartida del portal autoriza consultar, encender y solicitar el apagado completo; Pelican tiene su propio acceso. Comparte el portal solo con personas de confianza: también pueden cerrar una partida. Para jugar basta con el portal y `IP:25565`; no necesitan la cuenta administradora de Pelican. Si compartes el panel, crea permisos adecuados en Pelican y no reutilices la contraseña del portal.
 
 ## Prueba de aceptación
 
@@ -100,6 +100,12 @@ SSH se mantiene restringido al CIDR del administrador y usa clave pública. El p
 ## Uso diario
 
 Abre el portal, introduce la contraseña y pulsa Encender. Puedes cerrar la pestaña; el controlador continúa supervisando. El servidor se apaga cuando corresponde aunque ya nadie tenga la web abierta. El límite de sesión de ocho horas y el mensual también se aplican si todavía hay jugadores. La contraseña compartida da acceso al encendido; no debe coincidir con la contraseña administradora de Pelican.
+
+Para terminar antes, usa **Guardar y apagar** en Fogata y confirma. El aviso indica los jugadores del último estado consultado; otros pueden entrar después. La orden cierra la partida aunque haya jugadores. El agente pide el cierre a Wings, espera que termine Minecraft y confirma al controlador antes de desasignar la VM. El portal muestra Apagando hasta que Azure confirme la desasignación. Repetir la orden no reinicia el plazo. Si el agente falla, sigue aplicando el plazo de emergencia documentado en [ARQUITECTURA.md](ARQUITECTURA.md); no se garantiza el guardado en ese caso.
+
+Detener Minecraft desde Pelican no equivale a desasignar la VM. Todavía no existe un modo mantenimiento: el controlador puede considerar el juego detenido como un fallo una vez superado el plazo de arranque y apagar la VM. No cuentes con mantenerla encendida indefinidamente para editar archivos.
+
+**Juegos de la fogata** comienza cerrado y se abre como acordeón. Incluye chispas, una ronda de clics por segundo de 15 segundos y un juego de saltos. Funciona también con el servidor encendido o apagado y sin iniciar sesión. Abrirlo cancela la redirección automática a Pelican. Cerrar el acordeón o pasar la página a segundo plano termina las rondas locales; los juegos no consultan Azure ni encienden la VM. La animación de la fogata respeta la preferencia de movimiento reducido.
 
 Realiza cambios de plugins y mundos con el servidor detenido ordenadamente, pero manteniendo la VM encendida. Conserva un backup probado antes de actualizar Paper, Java o el panel.
 

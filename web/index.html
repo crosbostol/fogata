@@ -10,6 +10,7 @@
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <script src="config.js" defer></script>
+  <script src="games.js" defer></script>
   <script src="app.js" defer></script>
 </head>
 <body>
@@ -29,9 +30,11 @@
         <p class="eyebrow">MENOS ESPERA. MÁS AVENTURA.</p>
         <h1 id="page-title">Tu mundo.<br>Una chispa de distancia<span>.</span></h1>
         <p class="intro-copy">Enciende el servidor, reúne a tu gente<br class="desktop-break"> y continúa donde lo dejaron.</p>
-        <div class="landscape" aria-hidden="true">
-          <svg viewBox="0 0 420 180" fill="none"><path d="M0 142h51v-22h48V86h53v19h45v30h45v-19h54V78h48v29h44v35h32v38H0z" fill="#203d2d"/><path d="M0 157h76v-19h62v17h64v-12h70v13h72v-27h76v51H0z" fill="#31533a"/><path d="M44 122V90H28V75h16V52h18v23h17v15H62v32zm284-30V58h-16V43h16V20h18v23h17v15h-17v34z" fill="#45654a"/><path d="M194 146h52v8h-52zm5 9h44v7h-44z" fill="#917151"/><path d="M204 139v-16h8v-17h9V93h8v21h9v25z" fill="#f1a15e"/><path d="M213 139v-11h8v-13h8v24z" fill="#ffe4a8"/><path d="M217 77h5v5h-5zm18 14h4v4h-4zm-35-1h4v4h-4z" fill="#c88450"/></svg>
-          <span class="landscape-caption">EL MUNDO DESCANSA HASTA QUE TÚ VUELVES</span>
+        <div class="landscape">
+          <button id="campfire" class="campfire" type="button" aria-label="Soplar para avivar la fogata">
+            <svg viewBox="0 0 420 180" fill="none" aria-hidden="true"><path d="M0 142h51v-22h48V86h53v19h45v30h45v-19h54V78h48v29h44v35h32v38H0z" fill="#203d2d"/><path d="M0 157h76v-19h62v17h64v-12h70v13h72v-27h76v51H0z" fill="#31533a"/><path d="M44 122V90H28V75h16V52h18v23h17v15H62v32zm284-30V58h-16V43h16V20h18v23h17v15h-17v34z" fill="#45654a"/><ellipse class="fire-glow" cx="221" cy="132" rx="56" ry="28" fill="#fba45b"/><path d="M194 146h52v8h-52zm5 9h44v7h-44z" fill="#917151"/><g class="flame"><path d="M204 139v-16h8v-17h9V93h8v21h9v25z" fill="#f1a15e"/><path d="M213 139v-11h8v-13h8v24z" fill="#ffe4a8"/></g><g fill="#ffd494"><path class="ember ember-one" d="M217 104h5v5h-5z"/><path class="ember ember-two" d="M235 116h4v4h-4z"/><path class="ember ember-three" d="M200 110h4v4h-4z"/></g></svg>
+          </button>
+          <span id="fire-caption" class="landscape-caption">UN SOPLIDO PARA AVIVAR LA LLAMA · HAZ CLIC</span>
         </div>
       </section>
 
@@ -57,15 +60,27 @@
           </ol>
           <button id="start-button" class="primary-button" type="button">Encender servidor <span aria-hidden="true">↗</span></button>
           <a id="panel-link" class="primary-button" hidden>Abrir Pelican <span aria-hidden="true">↗</span></a>
+          <button id="stop-button" class="stop-button" type="button" hidden>Guardar y apagar</button>
+          <div id="stop-confirmation" class="stop-confirmation" hidden>
+            <p id="stop-warning">Se cerrará Minecraft y se apagará la máquina. El panel dejará de estar disponible.</p>
+            <div class="confirmation-actions"><button id="confirm-stop" class="secondary-button" type="button">Sí, guardar y apagar</button><button id="cancel-stop" class="text-button" type="button">Cancelar</button></div>
+          </div>
           <div id="redirect-notice" class="redirect-notice" aria-live="polite" hidden><span id="redirect-text"></span><button id="cancel-redirect" type="button" class="text-button">Quedarme aquí</button></div>
           <div class="server-details"><div><span class="detail-label">DIRECCIÓN DE MINECRAFT</span><div class="address-row"><code id="minecraft-address">Disponible al iniciar</code><button id="copy-address" class="text-button" type="button" hidden>Copiar</button></div></div><div class="metrics"><p><span class="detail-label">EN LÍNEA</span><strong id="players">—</strong></p><p><span class="detail-label">HORAS ESTE MES</span><strong id="hours">—</strong></p></div></div>
           <div class="card-foot"><span id="updated-at" class="muted small">Esperando estado</span><button id="logout-button" type="button" class="text-button">Salir</button></div>
         </div>
       </section>
 
-      <section id="game-section" class="game-section" aria-labelledby="game-title" hidden>
-        <div class="game-intro"><p class="eyebrow">MIENTRAS DESPIERTA EL MUNDO</p><h2 id="game-title">Atrapa una chispa.</h2><p>Toca el bloque iluminado. Tienes 25 segundos para mantener viva la fogata.</p><button id="game-button" class="secondary-button" type="button">Jugar una ronda</button><p id="game-score" class="muted small" aria-live="polite">Se juega aquí, en tu navegador.</p></div>
-        <div id="game-grid" class="game-grid" role="group" aria-label="Tablero de chispas, nueve bloques"></div>
+      <section id="game-section" class="game-section" aria-label="Juegos de la fogata">
+        <details id="games-accordion">
+          <summary><span><span class="eyebrow">UN RATITO JUNTO AL FUEGO</span><span class="games-title">Juegos de la fogata</span><span class="games-subtitle">Mientras carga, después de jugar o porque sí.</span></span><span class="accordion-chevron" aria-hidden="true">＋</span></summary>
+          <div class="games-content">
+            <article class="mini-game game-intro"><h2>Atrapa una chispa</h2><p>Toca el bloque iluminado. Tienes 25 segundos para recoger todas las chispas que puedas.</p><div id="game-grid" class="game-grid" role="group" aria-label="Tablero de chispas, nueve bloques"></div><button id="game-button" class="secondary-button" type="button">Jugar una ronda</button><p id="game-score" class="muted small" aria-live="polite">Se juega aquí, en tu navegador.</p></article>
+            <article class="mini-game"><h2>Aviva el fuego</h2><p>15 segundos. Todos los clics que puedas. ¿Cuántos clics por segundo haces?</p><div class="cps-metrics"><strong id="cps-rate">0,00 <small>CPS</small></strong><span id="cps-time">15,0 s</span></div><button id="cps-target" class="cps-target" type="button" disabled>✦<span>¡Aviva la llama!</span></button><button id="cps-start" class="secondary-button" type="button">Empezar 15 segundos</button><p id="cps-score" class="muted small" aria-live="polite">El cronómetro empieza al pulsar Empezar.</p></article>
+            <article class="mini-game runner-card"><h2>La última brasa</h2><p>Una brasa se escapó de la fogata. Salta los troncos y mantenla en movimiento.</p><button id="runner-track" class="runner-track" type="button" aria-label="Saltar: pulsa aquí, espacio o flecha arriba"><span class="runner-moon" aria-hidden="true">☾</span><span id="runner-hero" class="runner-hero" aria-hidden="true">✦</span><span id="runner-obstacle" class="runner-obstacle" aria-hidden="true"></span><span class="runner-ground" aria-hidden="true"></span><span class="runner-hint">CLIC · ESPACIO · ↑</span></button><div class="runner-controls"><button id="runner-start" class="secondary-button" type="button">Salir a saltar</button><strong id="runner-distance">0 m</strong></div><p id="runner-score" class="muted small" aria-live="polite">Salta con un toque, espacio o ↑ dentro del juego.</p></article>
+          </div>
+          <p class="games-footnote">Los juegos corren en tu navegador. No encienden la VM ni consumen horas del servidor.</p>
+        </details>
       </section>
     </main>
     <footer><span>Un clic para volver a construir.</span><span>Minecraft Java · Encendido bajo demanda</span></footer>

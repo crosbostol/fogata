@@ -23,6 +23,7 @@
   let redirectDismissed = false;
   let requesting = false;
   let demoStartedAt = null;
+  let demoStoppedAt = null;
   let gameTimer = null;
   let gameScore = 0;
   let gameEndsAt = 0;
@@ -54,7 +55,7 @@
 
   function demoState() {
     const elapsed = demoStartedAt ? Date.now() - demoStartedAt : -1;
-    const phase = elapsed < 0 ? "off" : elapsed < 4000 ? "starting" : elapsed < 9000 ? "booting" : elapsed < 22000 ? "loading" : "ready";
+    const phase = demoStoppedAt ? (Date.now() - demoStoppedAt < 5000 ? "stopping" : "off") : elapsed < 0 ? "off" : elapsed < 4000 ? "starting" : elapsed < 9000 ? "booting" : elapsed < 22000 ? "loading" : "ready";
     return {
       phase,
       players: 0,
@@ -69,7 +70,8 @@
 
   async function api(path, method = "GET") {
     if (demo) {
-      if (path === "start" && !demoStartedAt) demoStartedAt = Date.now();
+      if (path === "start" && (!demoStartedAt || demoStoppedAt)) { demoStartedAt = Date.now(); demoStoppedAt = null; }
+      if (path === "stop" && !demoStoppedAt) demoStoppedAt = Date.now();
       return demoState();
     }
     const base = normalizeBase(config.apiBaseUrl);
@@ -98,7 +100,7 @@
       if (!phases[body.phase]) throw new Error("La API devolvió un estado desconocido. Revisa su configuración.");
       return body;
     } catch (error) {
-      if (error.name === "AbortError") throw new Error("La consulta está tardando demasiado. Volveremos a consultar sin repetir el encendido.");
+      if (error.name === "AbortError") throw new Error("La consulta está tardando demasiado. Volveremos a consultar sin repetir la operación.");
       if (error instanceof TypeError) throw new Error("No hay conexión con la API. Revisa tu conexión o vuelve a intentarlo.");
       throw error;
     } finally { clearTimeout(timeout); }
@@ -147,23 +149,27 @@
     $("start-button").hidden = phase === "ready";
     $("start-button").disabled = requesting || waiting || ["stopping", "blocked"].includes(phase);
     $("start-button").firstChild.textContent = waiting ? "Encendido en curso " : phase === "stopping" ? "Apagado en curso " : phase === "blocked" ? "Encendido deshabilitado " : "Encender servidor ";
-    $("game-section").hidden = !(waiting || gameTimer || (phase === "ready" && gameScore > 0));
+    const canStop = ["ready", "starting", "booting", "loading", "error"].includes(phase);
+    $("stop-button").hidden = !canStop;
+    $("stop-button").disabled = requesting;
+    $("confirm-stop").disabled = requesting;
+    if (!canStop) $("stop-confirmation").hidden = true;
     const address = typeof state.minecraftAddress === "string" ? state.minecraftAddress : "";
     $("minecraft-address").textContent = address || "Disponible al iniciar";
     $("copy-address").hidden = !address;
     $("players").textContent = Number.isFinite(state.players) && phase === "ready" ? String(state.players) : "—";
     const hours = Number.isFinite(state.usedHours) ? state.usedHours.toLocaleString("es-CL", { maximumFractionDigits: 1 }) : "—";
     $("hours").textContent = `${hours}${Number.isFinite(state.maxHours) ? ` / ${state.maxHours}` : ""} h`;
-    const date = new Date(state.updatedAt);
+    const date = new Date(typeof state.updatedAt === "number" ? state.updatedAt * 1000 : state.updatedAt);
     $("updated-at").textContent = Number.isNaN(date.getTime()) ? "Estado actualizado" : `Actualizado ${date.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}`;
     const panelUrl = safePanelUrl(state.panelUrl);
     $("panel-link").hidden = phase !== "ready" || !panelUrl || demo;
     if (panelUrl) $("panel-link").href = panelUrl;
     else $("panel-link").removeAttribute("href");
-    if (phase === "ready" && (panelUrl || demo)) startRedirect(panelUrl);
+    if (phase === "ready" && (panelUrl || demo) && !$("games-accordion").open && $("stop-confirmation").hidden) startRedirect(panelUrl);
     else if (phase !== "ready") {
       cancelRedirect(false);
-      if (!waiting && gameTimer) stopGame();
+
     }
   }
 
@@ -176,7 +182,7 @@
     stopGame();
     $("login-form").hidden = false;
     $("dashboard").hidden = true;
-    $("game-section").hidden = true;
+    $("stop-confirmation").hidden = true;
     $("status-badge").textContent = "Sin consultar";
     delete $("status-badge").dataset.phase;
     $("password").value = "";
@@ -235,7 +241,8 @@
   $("start-button").addEventListener("click", async () => {
     if (requesting || !authenticated) return;
     requesting = true;
-    const generation = pollingGeneration;
+    const generation = ++pollingGeneration;
+    clearTimeout(pollTimer);
     $("start-button").disabled = true;
     notice("");
     try {
@@ -243,6 +250,40 @@
       if (authenticated && generation === pollingGeneration) render(state);
     }
     catch (error) { if (authenticated && generation === pollingGeneration) handleError(error); }
+    finally {
+      requesting = false;
+      if (authenticated && snapshot) render(snapshot);
+      schedulePoll();
+    }
+  });
+
+  $("stop-button").addEventListener("click", () => {
+    if (!authenticated || requesting) return;
+    cancelRedirect();
+    const players = Number.isFinite(snapshot?.players) ? snapshot.players : 0;
+    $("stop-warning").textContent = `${players > 0 ? `Hay ${players} jugador(es) en línea. Se desconectarán. ` : ""}Se guardará el mundo y se apagará la máquina. Pelican dejará de estar disponible.`;
+    $("stop-confirmation").hidden = false;
+    $("confirm-stop").focus();
+  });
+  $("cancel-stop").addEventListener("click", () => {
+    $("stop-confirmation").hidden = true;
+    $("stop-button").focus();
+  });
+  $("confirm-stop").addEventListener("click", async () => {
+    if (requesting || !authenticated || $("stop-confirmation").hidden) return;
+    requesting = true;
+    const generation = ++pollingGeneration;
+    clearTimeout(pollTimer);
+    cancelRedirect();
+    notice("");
+    if (snapshot) render(snapshot);
+    try {
+      const state = await api("stop", "POST");
+      if (authenticated && generation === pollingGeneration) {
+        $("stop-confirmation").hidden = true;
+        render(state);
+      }
+    } catch (error) { if (authenticated && generation === pollingGeneration) handleError(error); }
     finally {
       requesting = false;
       if (authenticated && snapshot) render(snapshot);
@@ -324,6 +365,110 @@
     }, 1000);
   });
 
+  let cpsRound = null;
+  let cpsTimer = null;
+  let runner = null;
+  let runnerFrame = null;
+  let lastFrame = 0;
+  let fireTimer = null;
+
+  function updateCps() {
+    if (!cpsRound) return;
+    const result = cpsRound.result(Date.now());
+    $("cps-rate").textContent = `${result.cps.toLocaleString("es-CL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} CPS`;
+    $("cps-time").textContent = `${(result.remaining / 1000).toFixed(1).replace(".", ",")} s`;
+    // Keep the live region quiet until the round ends.
+    if (result.done) finishCps(false);
+  }
+  function finishCps(interrupted) {
+    if (!cpsRound) return;
+    const result = cpsRound.result(Date.now());
+    clearInterval(cpsTimer);
+    cpsTimer = null;
+    cpsRound = null;
+    $("cps-target").disabled = true;
+    $("cps-start").disabled = false;
+    $("cps-start").textContent = "Otra ronda de 15 segundos";
+    $("cps-score").textContent = interrupted ? "Ronda interrumpida. Puedes empezar de nuevo cuando quieras." : `${result.clicks} clics en 15 segundos · ${(result.clicks / 15).toFixed(2).replace(".", ",")} CPS. ¡Esa llama está viva!`;
+  }
+  $("cps-start").addEventListener("click", () => {
+    if (cpsRound) return;
+    cancelRedirect();
+    cpsRound = new window.FogataGameRules.ClickRound(Date.now());
+    $("cps-start").disabled = true;
+    $("cps-target").disabled = false;
+    $("cps-score").textContent = "¡Ahora! Pulsa la llama tantas veces como puedas.";
+    $("cps-target").focus();
+    updateCps();
+    cpsTimer = setInterval(updateCps, 50);
+  });
+  $("cps-target").addEventListener("click", () => {
+    if (!cpsRound) return;
+    cpsRound.click(Date.now());
+    updateCps();
+  });
+
+  function drawRunner() {
+    $("runner-hero").style.bottom = `${28 + runner.y}px`;
+    $("runner-obstacle").style.left = `${runner.obstacle}%`;
+    $("runner-distance").textContent = `${Math.floor(runner.distance)} m`;
+  }
+  function finishRunner(interrupted = false) {
+    if (!runner) return;
+    cancelAnimationFrame(runnerFrame);
+    runnerFrame = null;
+    $("runner-start").textContent = "Volver a saltar";
+    $("runner-score").textContent = interrupted ? "Brasa en pausa. Empieza otra carrera cuando quieras." : `Llegaste a ${Math.floor(runner.distance)} m. ¡Un salto más la próxima vez!`;
+    runner = null;
+  }
+  function animateRunner(now) {
+    if (!runner) return;
+    runner.step((now - lastFrame) / 1000);
+    lastFrame = now;
+    drawRunner();
+    if (runner.over) finishRunner();
+    else runnerFrame = requestAnimationFrame(animateRunner);
+  }
+  $("runner-start").addEventListener("click", () => {
+    if (runner) { finishRunner(true); return; }
+    cancelRedirect();
+    runner = new window.FogataGameRules.Runner();
+    lastFrame = performance.now();
+    $("runner-start").textContent = "Terminar carrera";
+    $("runner-score").textContent = "¡Salta los troncos!";
+    $("runner-track").focus();
+    drawRunner();
+    runnerFrame = requestAnimationFrame(animateRunner);
+  });
+  $("runner-track").addEventListener("click", () => { if (runner) runner.jump(); });
+  $("runner-track").addEventListener("keydown", (event) => {
+    if (![" ", "ArrowUp"].includes(event.key)) return;
+    event.preventDefault();
+    if (!event.repeat && runner) runner.jump();
+  });
+  // Native buttons produce a click for Enter and touch, too.
+  $("campfire").addEventListener("click", () => {
+    clearTimeout(fireTimer);
+    $("campfire").classList.add("stoked");
+    $("fire-caption").textContent = "ASÍ SE MANTIENE VIVA UNA BUENA FOGATA";
+    fireTimer = setTimeout(() => {
+      $("campfire").classList.remove("stoked");
+      $("fire-caption").textContent = "UN SOPLIDO PARA AVIVAR LA LLAMA · HAZ CLIC";
+    }, 1200);
+  });
+  function pauseGames() {
+    if (gameTimer) stopGame();
+    finishCps(true);
+    finishRunner(true);
+  }
+  $("games-accordion").addEventListener("toggle", () => {
+    if ($("games-accordion").open) cancelRedirect();
+    else pauseGames();
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) pauseGames();
+  });
+
   if (demo) {
     $("demo-banner").hidden = false;
     $("login-hint").textContent = "Demo local: usa cualquier contraseña. No se envía ni guarda.";
@@ -335,7 +480,9 @@
   window.addEventListener("pagehide", () => {
     clearTimeout(pollTimer);
     cancelRedirect();
-    stopGame();
+    pauseGames();
+    clearTimeout(fireTimer);
+    $("campfire").classList.remove("stoked");
     password = "";
     authenticated = false;
     pollingGeneration += 1;

@@ -75,6 +75,28 @@ def request_start(state, now, power, limits):
     return 202, True
 
 
+def request_stop(state, now, power):
+    """Request the existing graceful shutdown protocol; never cut VM power here."""
+    account(state, now, power)
+    if power == "deallocated":
+        state.update(phase="off", startedAt=None, heartbeat=None, idleSince=None,
+                     stopRequestedAt=None, stopReason=None, deallocatePending=False,
+                     message="Servidor apagado.")
+        return 200
+    if power == "deallocating":
+        state.update(phase="stopping", message="Azure está liberando la máquina.")
+        return 202
+    if state["phase"] == "stopping":
+        if state.get("stopReason") == "idle":
+            state["stopReason"] = "manual"
+        return 202  # Repeated requests must not extend the emergency deadline.
+    if power not in {"running", "starting", "stopped"}:
+        return 409
+    state.update(phase="stopping", stopRequestedAt=now, stopReason="manual",
+                 message="Apagado solicitado: guardando el mundo antes de liberar la máquina.")
+    return 202
+
+
 def receive_heartbeat(state, payload, now):
     timestamp = payload.get("timestamp")
     players = payload.get("players")

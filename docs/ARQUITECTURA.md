@@ -6,7 +6,7 @@ Fogata mantiene la web y su API disponibles, y desasigna la VM más costosa mien
 
 | Componente | Responsabilidad |
 |---|---|
-| Portal | Contraseña compartida, encender, consultar estado, minijuego local, redirección |
+| Portal | Contraseña compartida, encender, guardar y apagar, estado, juegos locales, redirección |
 | API | Autenticar, coordinar solicitudes, aplicar límites y ejecutar operaciones Azure |
 | Blob de control | Estado compartido y bloqueo para evitar arranques concurrentes |
 | Monitor de la VM | Estado real de Minecraft, jugadores y cierre ordenado |
@@ -25,6 +25,7 @@ Las peticiones autenticadas envían `X-Portal-Password` por HTTPS. La API devuel
 |---|---|
 | `GET /api/status` | Estado sin encender el servidor |
 | `POST /api/start` | Solicitud explícita e idempotente de encendido |
+| `POST /api/stop` | Solicitud autenticada de cierre ordenado y desasignación; no corta la VM directamente |
 | `POST /api/heartbeat` | Reporte interno del monitor, autenticación separada |
 
 Contrato esperado por el frontend:
@@ -46,7 +47,7 @@ Fases: `off`, `starting`, `booting`, `loading`, `ready`, `stopping`, `blocked`, 
 
 ## Apagado y límites
 
-El apagado exige guardar el mundo y cerrar el proceso antes de desasignar. Para el ahorro importa `Deallocated`; un contenedor parado o `shutdown` dentro de Linux no garantizan que Azure deje de cobrar cómputo. El almacenamiento y la IP siguen costando. [Estados Azure](https://learn.microsoft.com/en-us/azure/virtual-machines/states-billing).
+El apagado exige guardar el mundo y cerrar el proceso antes de desasignar. La petición manual marca `stopReason=manual` bajo el mismo bloqueo de estado que usa el encendido; el heartbeat devuelve la orden al agente y el cierre continúa aunque se cierre el navegador. Repetir la petición conserva el plazo original. Los jugadores no cancelan un apagado manual confirmado. Para el ahorro importa `Deallocated`; un contenedor parado o `shutdown` dentro de Linux no garantizan que Azure deje de cobrar cómputo. El almacenamiento y la IP siguen costando. [Estados Azure](https://learn.microsoft.com/en-us/azure/virtual-machines/states-billing).
 
 Las horas miden VM, no jugadores. El temporizador de control no depende de que haya una pestaña abierta. El período mensual del controlador es el mes UTC, que puede no coincidir con el ciclo de crédito de la oferta. La pérdida del heartbeat se trata como fallo de supervisión, no como evidencia de cero jugadores. Una parada solicitada solo por inactividad puede cancelarse si entra alguien y el cierre aún no empezó. Los límites de sesión y presupuesto pueden detener una partida con jugadores. Tras solicitar un cierre, el controlador espera confirmación del agente; si no llega, usa un plazo de emergencia (por defecto cinco minutos) antes de desasignar para contener gasto. Esto puede perder cambios sin guardar. Los límites son defensa operativa y requieren observar fallos; no representan una garantía financiera ni sustituyen backups.
 

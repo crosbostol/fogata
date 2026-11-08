@@ -7,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "api"))
 from control import (account, initial, month_key, public_status, receive_heartbeat,
-                     reconcile, request_start, used_hours, verify_heartbeat, verify_password)
+                     reconcile, request_start, request_stop, used_hours, verify_heartbeat, verify_password)
 
 LIMITS = {"monthly": 180, "session": 28800, "idle": 900, "boot": 900,
           "heartbeat": 180, "emergency": 300}
@@ -44,6 +44,31 @@ class LifecycleTests(unittest.TestCase):
         self.running()
         self.state["phase"] = "stopping"
         self.assertEqual(request_start(self.state, NOW + 61, "running", LIMITS), (409, False))
+
+    def test_manual_stop_waits_for_save_even_with_players(self):
+        self.running()
+        self.assertEqual(request_stop(self.state, NOW + 90, "running"), 202)
+        receive_heartbeat(self.state, beat(NOW + 91, players=3), NOW + 91)
+        self.assertEqual(self.state["stopReason"], "manual")
+        self.assertIsNone(reconcile(self.state, NOW + 91, "running", LIMITS))
+        self.assertEqual(request_stop(self.state, NOW + 100, "running"), 202)
+        self.assertEqual(self.state["stopRequestedAt"], NOW + 90)
+        packet = beat(NOW + 110)
+        packet.update(mcReady=False, shutdownAck=True, shutdownStarted=True)
+        receive_heartbeat(self.state, packet, NOW + 110)
+        self.assertEqual(reconcile(self.state, NOW + 110, "running", LIMITS), "deallocate")
+
+    def test_manual_stop_off_is_idempotent_and_unknown_is_rejected(self):
+        self.assertEqual(request_stop(self.state, NOW, "deallocated"), 200)
+        self.assertEqual(self.state["phase"], "off")
+        self.assertEqual(request_stop(self.state, NOW + 1, "unknown"), 409)
+        self.assertEqual(self.state["phase"], "off")
+
+    def test_manual_stop_boot_failure_has_bounded_emergency(self):
+        request_start(self.state, NOW, "deallocated", LIMITS)
+        request_stop(self.state, NOW + 10, "starting")
+        self.assertIsNone(reconcile(self.state, NOW + 309, "running", LIMITS))
+        self.assertEqual(reconcile(self.state, NOW + 310, "running", LIMITS), "deallocate")
 
     def test_idle_ignores_polls_and_requires_graceful_ack(self):
         self.running()
