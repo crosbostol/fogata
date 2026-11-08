@@ -1,0 +1,15 @@
+.local/
+.venv/
+__pycache__/
+*.pyc
+local.settings.json
+*.zip
+*.pem
+*.key
+*.pfx
+.env
+.env.*
+!.env.example
+node_modules/
+infra/main.json
+.DS_Store

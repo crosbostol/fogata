@@ -1,0 +1,346 @@
+(() => {
+  "use strict";
+
+  const config = window.PORTAL_CONFIG || {};
+  const demo = config.demo === true;
+  const $ = (id) => document.getElementById(id);
+  const phases = {
+    off: ["Apagado", "El mundo está descansando", "Enciéndelo cuando quieras jugar. Se apagará automáticamente cuando no quede nadie."],
+    starting: ["Iniciando", "Una chispa para empezar", "La solicitud de encendido está en marcha. Puedes dejar esta página abierta."],
+    booting: ["Iniciando", "La máquina está despertando", "Estamos esperando a que los servicios del servidor estén disponibles."],
+    loading: ["Cargando", "El mundo está tomando forma", "Minecraft está cargando. El tiempo depende del mundo y de sus plugins."],
+    ready: ["En línea", "La aventura te espera", "El servidor y Pelican están listos. Copia la dirección y entra desde Minecraft."],
+    stopping: ["Apagando", "Guardando la última aventura", "Espera a que termine el apagado antes de volver a encenderlo."],
+    blocked: ["En pausa", "Por ahora, toca descansar", "El encendido está temporalmente deshabilitado. Revisa el mensaje del servidor."],
+    error: ["Revisar", "El servidor necesita atención", "No pudimos completar la operación. Puedes volver a consultar el estado."],
+  };
+  const stageOrder = ["starting", "booting", "loading", "ready"];
+  let password = "";
+  let authenticated = false;
+  let snapshot = null;
+  let pollTimer = null;
+  let redirectTimer = null;
+  let redirectDismissed = false;
+  let requesting = false;
+  let demoStartedAt = null;
+  let gameTimer = null;
+  let gameScore = 0;
+  let gameEndsAt = 0;
+  let litTile = -1;
+  let pollingGeneration = 0;
+
+  function notice(message, kind = "error") {
+    $("notice").textContent = message;
+    $("notice").dataset.kind = kind;
+    $("notice").hidden = !message;
+  }
+
+  function normalizeBase(value) {
+    const url = new URL(value || "/", window.location.href);
+    const local = ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+    if (url.protocol !== "https:" && !(url.protocol === "http:" && local)) {
+      throw new Error("La API debe usar HTTPS. HTTP solo está permitido para desarrollo local.");
+    }
+    return url.href.replace(/\/$/, "");
+  }
+
+  function safePanelUrl(value) {
+    try {
+      const url = new URL(value);
+      if (!["https:", "http:"].includes(url.protocol) || url.username || url.password) return null;
+      return url.href;
+    } catch { return null; }
+  }
+
+  function demoState() {
+    const elapsed = demoStartedAt ? Date.now() - demoStartedAt : -1;
+    const phase = elapsed < 0 ? "off" : elapsed < 4000 ? "starting" : elapsed < 9000 ? "booting" : elapsed < 22000 ? "loading" : "ready";
+    return {
+      phase,
+      players: 0,
+      usedHours: 12.4,
+      maxHours: 180,
+      minecraftAddress: "servidor-de-ejemplo:25565",
+      panelUrl: "",
+      message: "",
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  async function api(path, method = "GET") {
+    if (demo) {
+      if (path === "start" && !demoStartedAt) demoStartedAt = Date.now();
+      return demoState();
+    }
+    const base = normalizeBase(config.apiBaseUrl);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const response = await fetch(`${base}/api/${path}`, {
+        method,
+        headers: { "X-Portal-Password": password, "Accept": "application/json" },
+        cache: "no-store",
+        credentials: "omit",
+        signal: controller.signal,
+      });
+      let body;
+      try { body = await response.json(); } catch { body = {}; }
+      if (response.status === 401) {
+        const error = new Error("La contraseña no es válida o cambió. Vuelve a entrar.");
+        error.unauthorized = true;
+        throw error;
+      }
+      if (!response.ok) {
+        if (body.phase && phases[body.phase]) render(body);
+        const fallback = response.status === 429 ? "Hay un límite activo. Espera antes de volver a intentar." : response.status === 409 ? "El servidor está cambiando de estado. Espera un momento." : "No pudimos consultar el servidor. Inténtalo de nuevo.";
+        throw new Error(typeof body.message === "string" ? body.message : fallback);
+      }
+      if (!phases[body.phase]) throw new Error("La API devolvió un estado desconocido. Revisa su configuración.");
+      return body;
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("La consulta está tardando demasiado. Volveremos a consultar sin repetir el encendido.");
+      if (error instanceof TypeError) throw new Error("No hay conexión con la API. Revisa tu conexión o vuelve a intentarlo.");
+      throw error;
+    } finally { clearTimeout(timeout); }
+  }
+
+  function cancelRedirect(dismiss = true) {
+    clearInterval(redirectTimer);
+    redirectTimer = null;
+    redirectDismissed = dismiss;
+    $("redirect-notice").hidden = true;
+  }
+
+  function startRedirect(url) {
+    if (redirectTimer || redirectDismissed) return;
+    let remaining = 10;
+    $("redirect-notice").hidden = false;
+    const text = () => { $("redirect-text").textContent = demo ? `Demo: simulación de redirección en ${remaining} s.` : `Abriremos Pelican en ${remaining} s.`; };
+    text();
+    redirectTimer = setInterval(() => {
+      remaining -= 1;
+      text();
+      if (remaining <= 0) {
+        cancelRedirect();
+        if (demo) notice("Demostración terminada. En el despliegue real se abriría Pelican.", "success");
+        else window.location.assign(url);
+      }
+    }, 1000);
+  }
+
+  function render(state) {
+    snapshot = state;
+    const phase = phases[state.phase] ? state.phase : "error";
+    const [label, title, description] = phases[phase];
+    $("status-badge").textContent = demo ? `Demo · ${label}` : label;
+    $("status-badge").dataset.phase = phase;
+    $("state-title").textContent = title;
+    $("state-copy").textContent = typeof state.message === "string" && state.message ? state.message : description;
+    const current = stageOrder.indexOf(phase);
+    document.querySelectorAll("[data-stage]").forEach((item, index) => {
+      item.classList.toggle("done", current >= 0 && (index < current || phase === "ready"));
+      item.classList.toggle("current", current === index && phase !== "ready");
+      if (current === index) item.setAttribute("aria-current", "step");
+      else item.removeAttribute("aria-current");
+    });
+    const waiting = ["starting", "booting", "loading"].includes(phase);
+    $("start-button").hidden = phase === "ready";
+    $("start-button").disabled = requesting || waiting || ["stopping", "blocked"].includes(phase);
+    $("start-button").firstChild.textContent = waiting ? "Encendido en curso " : phase === "stopping" ? "Apagado en curso " : phase === "blocked" ? "Encendido deshabilitado " : "Encender servidor ";
+    $("game-section").hidden = !(waiting || gameTimer || (phase === "ready" && gameScore > 0));
+    const address = typeof state.minecraftAddress === "string" ? state.minecraftAddress : "";
+    $("minecraft-address").textContent = address || "Disponible al iniciar";
+    $("copy-address").hidden = !address;
+    $("players").textContent = Number.isFinite(state.players) && phase === "ready" ? String(state.players) : "—";
+    const hours = Number.isFinite(state.usedHours) ? state.usedHours.toLocaleString("es-CL", { maximumFractionDigits: 1 }) : "—";
+    $("hours").textContent = `${hours}${Number.isFinite(state.maxHours) ? ` / ${state.maxHours}` : ""} h`;
+    const date = new Date(state.updatedAt);
+    $("updated-at").textContent = Number.isNaN(date.getTime()) ? "Estado actualizado" : `Actualizado ${date.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}`;
+    const panelUrl = safePanelUrl(state.panelUrl);
+    $("panel-link").hidden = phase !== "ready" || !panelUrl || demo;
+    if (panelUrl) $("panel-link").href = panelUrl;
+    else $("panel-link").removeAttribute("href");
+    if (phase === "ready" && (panelUrl || demo)) startRedirect(panelUrl);
+    else if (phase !== "ready") {
+      cancelRedirect(false);
+      if (!waiting && gameTimer) stopGame();
+    }
+  }
+
+  function showLogin() {
+    authenticated = false;
+    password = "";
+    pollingGeneration += 1;
+    clearTimeout(pollTimer);
+    cancelRedirect();
+    stopGame();
+    $("login-form").hidden = false;
+    $("dashboard").hidden = true;
+    $("game-section").hidden = true;
+    $("status-badge").textContent = "Sin consultar";
+    delete $("status-badge").dataset.phase;
+    $("password").value = "";
+    $("password").type = "password";
+    $("reveal-password").textContent = "Ver";
+    $("reveal-password").setAttribute("aria-label", "Mostrar contraseña");
+    $("reveal-password").setAttribute("aria-pressed", "false");
+    $("password").focus();
+  }
+
+  function handleError(error) {
+    if (error.unauthorized) showLogin();
+    notice(error.message || "Algo salió mal. Inténtalo nuevamente.");
+  }
+
+  function schedulePoll() {
+    clearTimeout(pollTimer);
+    if (!authenticated) return;
+    const generation = pollingGeneration;
+    pollTimer = setTimeout(async () => {
+      try {
+        const state = await api("status");
+        if (!authenticated || generation !== pollingGeneration) return;
+        render(state);
+        notice("");
+      } catch (error) {
+        if (authenticated && generation === pollingGeneration) handleError(error);
+      } finally { if (authenticated && generation === pollingGeneration) schedulePoll(); }
+    }, demo ? 1500 : 12000);
+  }
+
+  $("login-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (requesting) return;
+    password = $("password").value;
+    if (!password) return;
+    requesting = true;
+    $("login-button").disabled = true;
+    notice("");
+    try {
+      const state = await api("status");
+      authenticated = true;
+      pollingGeneration += 1;
+      redirectDismissed = false;
+      $("password").value = "";
+      $("login-form").hidden = true;
+      $("dashboard").hidden = false;
+      requesting = false;
+      render(state);
+      schedulePoll();
+      (state.phase === "ready" && !$("panel-link").hidden ? $("panel-link") : $("logout-button")).focus();
+    } catch (error) { password = ""; handleError(error); }
+    finally { requesting = false; $("login-button").disabled = false; }
+  });
+
+  $("start-button").addEventListener("click", async () => {
+    if (requesting || !authenticated) return;
+    requesting = true;
+    const generation = pollingGeneration;
+    $("start-button").disabled = true;
+    notice("");
+    try {
+      const state = await api("start", "POST");
+      if (authenticated && generation === pollingGeneration) render(state);
+    }
+    catch (error) { if (authenticated && generation === pollingGeneration) handleError(error); }
+    finally {
+      requesting = false;
+      if (authenticated && snapshot) render(snapshot);
+      schedulePoll();
+    }
+  });
+
+  $("reveal-password").addEventListener("click", () => {
+    const visible = $("password").type === "password";
+    $("password").type = visible ? "text" : "password";
+    $("reveal-password").textContent = visible ? "Ocultar" : "Ver";
+    $("reveal-password").setAttribute("aria-label", visible ? "Ocultar contraseña" : "Mostrar contraseña");
+    $("reveal-password").setAttribute("aria-pressed", String(visible));
+  });
+  $("logout-button").addEventListener("click", () => { notice(""); showLogin(); });
+  $("cancel-redirect").addEventListener("click", () => cancelRedirect());
+  $("copy-address").addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(snapshot.minecraftAddress);
+      notice("Dirección copiada. Pégala en Multijugador → Conexión directa.", "success");
+    } catch { notice("No se pudo copiar automáticamente. Selecciona la dirección y cópiala."); }
+  });
+
+  const tiles = Array.from({ length: 9 }, (_, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "spark-tile";
+    button.disabled = true;
+    button.textContent = "✦";
+    button.setAttribute("aria-label", `Bloque ${index + 1}`);
+    button.addEventListener("click", () => {
+      if (!gameTimer || index !== litTile) return;
+      gameScore += 1;
+      lightTile();
+      updateScore();
+    });
+    $("game-grid").append(button);
+    return button;
+  });
+
+  function lightTile() {
+    const previous = litTile;
+    do { litTile = Math.floor(Math.random() * tiles.length); } while (litTile === previous);
+    tiles.forEach((tile, index) => {
+      tile.classList.toggle("lit", index === litTile);
+      tile.setAttribute("aria-label", `Bloque ${index + 1}${index === litTile ? ", chispa encendida" : ""}`);
+    });
+  }
+
+  function updateScore() {
+    const seconds = Math.max(0, Math.ceil((gameEndsAt - Date.now()) / 1000));
+    $("game-score").textContent = `${gameScore} chispas · ${seconds} segundos`;
+  }
+
+  function stopGame() {
+    clearInterval(gameTimer);
+    gameTimer = null;
+    litTile = -1;
+    tiles.forEach((tile, index) => {
+      tile.disabled = true;
+      tile.classList.remove("lit");
+      tile.setAttribute("aria-label", `Bloque ${index + 1}`);
+    });
+    $("game-button").textContent = "Jugar otra ronda";
+    $("game-score").textContent = `${gameScore} chispas recogidas. La consulta del servidor continúa por separado.`;
+  }
+
+  $("game-button").addEventListener("click", () => {
+    if (gameTimer) { stopGame(); return; }
+    gameScore = 0;
+    gameEndsAt = Date.now() + 25000;
+    tiles.forEach((tile) => { tile.disabled = false; });
+    $("game-button").textContent = "Terminar ronda";
+    lightTile();
+    updateScore();
+    gameTimer = setInterval(() => {
+      if (Date.now() >= gameEndsAt) stopGame();
+      else updateScore();
+    }, 1000);
+  });
+
+  if (demo) {
+    $("demo-banner").hidden = false;
+    $("login-hint").textContent = "Demo local: usa cualquier contraseña. No se envía ni guarda.";
+  } else if (!config.apiBaseUrl) {
+    $("login-button").disabled = true;
+    notice("Falta configurar apiBaseUrl. El despliegue debe generar config.js con la URL de la API.");
+  }
+
+  window.addEventListener("pagehide", () => {
+    clearTimeout(pollTimer);
+    cancelRedirect();
+    stopGame();
+    password = "";
+    authenticated = false;
+    pollingGeneration += 1;
+  });
+  window.addEventListener("pageshow", (event) => {
+    if (event.persisted) showLogin();
+  });
+})();

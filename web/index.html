@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Enciende tu servidor de Minecraft, espera junto a la fogata y entra a tu próxima aventura.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; base-uri 'none'; form-action 'none'; object-src 'none'">
+  <title>Fogata · Tu servidor de Minecraft</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="config.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="site-header">
+      <a href="./" class="brand" aria-label="Fogata, inicio">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><path d="M17 2 8 15l3 1-5 8 10 6 11-6-2-11-5 5z" fill="currentColor"/><path d="m17 15-5 9 5 3 5-4z" fill="#141e19"/></svg>
+        FOGATA<span class="brand-dot">.</span>
+      </a>
+      <span class="private-tag"><span aria-hidden="true">◆</span> Un mundo entre amigos</span>
+    </header>
+
+    <div id="demo-banner" class="demo-banner" hidden><strong>DEMOSTRACIÓN LOCAL</strong><span>Estados simulados. No se conecta a Azure ni enciende recursos.</span></div>
+
+    <main>
+      <section class="intro" aria-labelledby="page-title">
+        <p class="eyebrow">MENOS ESPERA. MÁS AVENTURA.</p>
+        <h1 id="page-title">Tu mundo.<br>Una chispa de distancia<span>.</span></h1>
+        <p class="intro-copy">Enciende el servidor, reúne a tu gente<br class="desktop-break"> y continúa donde lo dejaron.</p>
+        <div class="landscape" aria-hidden="true">
+          <svg viewBox="0 0 420 180" fill="none"><path d="M0 142h51v-22h48V86h53v19h45v30h45v-19h54V78h48v29h44v35h32v38H0z" fill="#203d2d"/><path d="M0 157h76v-19h62v17h64v-12h70v13h72v-27h76v51H0z" fill="#31533a"/><path d="M44 122V90H28V75h16V52h18v23h17v15H62v32zm284-30V58h-16V43h16V20h18v23h17v15h-17v34z" fill="#45654a"/><path d="M194 146h52v8h-52zm5 9h44v7h-44z" fill="#917151"/><path d="M204 139v-16h8v-17h9V93h8v21h9v25z" fill="#f1a15e"/><path d="M213 139v-11h8v-13h8v24z" fill="#ffe4a8"/><path d="M217 77h5v5h-5zm18 14h4v4h-4zm-35-1h4v4h-4z" fill="#c88450"/></svg>
+          <span class="landscape-caption">EL MUNDO DESCANSA HASTA QUE TÚ VUELVES</span>
+        </div>
+      </section>
+
+      <section class="server-card" aria-labelledby="server-title">
+        <div class="card-heading"><div><p class="eyebrow">PUNTO DE ENCUENTRO</p><h2 id="server-title">Servidor de Minecraft</h2></div><span id="status-badge" class="status-badge">Sin consultar</span></div>
+        <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+        <form id="login-form" class="login-form">
+          <p class="card-copy">La contraseña de siempre.<br>La próxima aventura de todos.</p>
+          <label for="password">Contraseña compartida</label>
+          <div class="password-row"><input id="password" name="password" type="password" autocomplete="current-password" required maxlength="256" placeholder="Ingresa la contraseña"><button id="reveal-password" class="reveal-button" type="button" aria-label="Mostrar contraseña" aria-pressed="false">Ver</button></div>
+          <button id="login-button" class="primary-button" type="submit">Entrar a la fogata <span aria-hidden="true">→</span></button>
+          <p id="login-hint" class="muted small">No necesitas crear una cuenta.</p>
+        </form>
+
+        <div id="dashboard" hidden>
+          <div class="state-description"><h3 id="state-title">El mundo está descansando</h3><p id="state-copy">Enciéndelo cuando quieras jugar.</p></div>
+          <ol id="stages" class="stages" aria-label="Etapas de encendido">
+            <li data-stage="starting"><span class="stage-dot" aria-hidden="true"></span><span>Solicitud</span></li>
+            <li data-stage="booting"><span class="stage-dot" aria-hidden="true"></span><span>Máquina</span></li>
+            <li data-stage="loading"><span class="stage-dot" aria-hidden="true"></span><span>Minecraft</span></li>
+            <li data-stage="ready"><span class="stage-dot" aria-hidden="true"></span><span>Listo</span></li>
+          </ol>
+          <button id="start-button" class="primary-button" type="button">Encender servidor <span aria-hidden="true">↗</span></button>
+          <a id="panel-link" class="primary-button" hidden>Abrir Pelican <span aria-hidden="true">↗</span></a>
+          <div id="redirect-notice" class="redirect-notice" aria-live="polite" hidden><span id="redirect-text"></span><button id="cancel-redirect" type="button" class="text-button">Quedarme aquí</button></div>
+          <div class="server-details"><div><span class="detail-label">DIRECCIÓN DE MINECRAFT</span><div class="address-row"><code id="minecraft-address">Disponible al iniciar</code><button id="copy-address" class="text-button" type="button" hidden>Copiar</button></div></div><div class="metrics"><p><span class="detail-label">EN LÍNEA</span><strong id="players">—</strong></p><p><span class="detail-label">HORAS ESTE MES</span><strong id="hours">—</strong></p></div></div>
+          <div class="card-foot"><span id="updated-at" class="muted small">Esperando estado</span><button id="logout-button" type="button" class="text-button">Salir</button></div>
+        </div>
+      </section>
+
+      <section id="game-section" class="game-section" aria-labelledby="game-title" hidden>
+        <div class="game-intro"><p class="eyebrow">MIENTRAS DESPIERTA EL MUNDO</p><h2 id="game-title">Atrapa una chispa.</h2><p>Toca el bloque iluminado. Tienes 25 segundos para mantener viva la fogata.</p><button id="game-button" class="secondary-button" type="button">Jugar una ronda</button><p id="game-score" class="muted small" aria-live="polite">Se juega aquí, en tu navegador.</p></div>
+        <div id="game-grid" class="game-grid" role="group" aria-label="Tablero de chispas, nueve bloques"></div>
+      </section>
+    </main>
+    <footer><span>Un clic para volver a construir.</span><span>Minecraft Java · Encendido bajo demanda</span></footer>
+  </div>
+</body>
+</html>
