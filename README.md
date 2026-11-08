@@ -4,6 +4,8 @@ Una URL, una contraseña compartida y un botón para encender tu servidor. Mient
 
 Cada persona despliega su propia copia y paga su consumo de Azure. Este repositorio no distribuye Minecraft ni reemplaza sus licencias.
 
+**Para conocer la idea sin entrar en la instalación:** [Fogata en cinco minutos, con diagramas](docs/FOGATA-EN-5-MINUTOS.md).
+
 ## Qué se despliega
 
 ```text
@@ -39,7 +41,7 @@ Docker, PHP, Composer y Java de producción se instalan en Linux en Azure. Docke
 
 La primera opción de esta copia es **Central US (`centralus`, Iowa)**, priorizando costo. **Brazil South (`brazilsouth`, estado de São Paulo)** queda como alternativa si la diferencia real de latencia justifica el mayor gasto. Central US y South Central US son regiones distintas; no intercambies sus nombres al copiar comandos. [Lista oficial de regiones](https://learn.microsoft.com/en-us/azure/reliability/regions-list).
 
-La región más cercana en el mapa no garantiza el mejor recorrido desde cada proveedor de Internet. Todavía no hay mediciones de ping de este despliegue. Después de provisionar, prueba la conexión al puerto Minecraft desde las redes reales de los jugadores; un ping ICMP aislado no confirma por sí solo el comportamiento de una partida. Si la experiencia es aceptable, evita migrar solo por una diferencia pequeña.
+La región más cercana en el mapa no garantiza el mejor recorrido desde cada proveedor de Internet. En la prueba inicial, la mediana del protocolo Minecraft desde el equipo administrador fue de 139,2 ms; no se midió una instalación en Brasil. Después de provisionar, prueba la conexión al puerto Minecraft desde las redes reales de los jugadores; un ping ICMP aislado no confirma por sí solo el comportamiento de una partida. Si la experiencia es aceptable, evita migrar solo por una diferencia pequeña.
 
 Mantén VM, almacenamiento y controlador juntos en la región elegida. Un cambio de región no mueve automáticamente el mundo ni conserva la IP: requiere respaldar, desplegar otra instalación, restaurar y retirar la anterior cuando esté verificada.
 
@@ -132,7 +134,7 @@ Abre `http://localhost:8080`. La configuración de ejemplo está marcada como de
 python -m unittest discover -s tests -v
 ```
 
-La validación inicial tiene 47 pruebas locales aprobadas; todavía no hay una prueba completa de extremo a extremo en Azure. Las pruebas locales no sustituyen una prueba de integración de Azure y un cliente Minecraft real. La Function necesita las dependencias de `api/requirements.txt` para ejecutarse en su host; los tests del núcleo pueden ejecutarse sin credenciales.
+La validación inicial tiene 47 pruebas locales aprobadas y un ciclo real de encendido, apagado con guardado y recuperación en Azure, documentado en [VALIDACION.md](docs/VALIDACION.md). No incluye una prueba con varios jugadores ni sustituye la comprobación desde un cliente Minecraft real. La Function necesita las dependencias de `api/requirements.txt` para ejecutarse en su host; los tests del núcleo pueden ejecutarse sin credenciales.
 
 ## Costos y controles
 
