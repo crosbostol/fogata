@@ -6,7 +6,7 @@ Cada persona despliega su propia copia y paga su consumo de Azure. Este reposito
 
 **Para conocer la idea sin entrar en la instalación:** [Fogata en cinco minutos, con diagramas](docs/FOGATA-EN-5-MINUTOS.md).
 
-**Mundos y modpacks:** el [selector de servidores](docs/MODPACKS.md) permite alternar Paper y DeceasedCraft, uno activo por sesión. El perfil modificado usa la misma VM; revisa los límites de memoria y el cliente necesario antes de entrar.
+**Mundos y modpacks:** el [selector de servidores](docs/MODPACKS.md) permite alternar Paper, DeceasedCraft y Hardcore Soulbound, uno activo por sesión. Todos usan la misma VM; revisa los límites de memoria y el cliente necesario antes de entrar.
 
 ## Qué se despliega
 

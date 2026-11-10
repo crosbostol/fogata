@@ -43,7 +43,7 @@ resource nsg 'Microsoft.Network/networkSecurityGroups@2024-05-01' = {
           direction: 'Inbound'
           protocol: 'Tcp'
           sourcePortRange: '*'
-          destinationPortRanges: ['25565', '25566']
+          destinationPortRanges: ['25565', '25566', '25567']
           sourceAddressPrefix: 'Internet'
           destinationAddressPrefix: '*'
         }

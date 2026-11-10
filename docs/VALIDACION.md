@@ -42,6 +42,19 @@ El 8 de noviembre de 2026 se importó el paquete de servidor DeceasedCraft 5.10.
 
 No se hizo una partida real del modpack, ni pruebas con jugadores, hordas o generación intensiva de ciudades. El arranque exitoso por debajo de la RAM mínima publicada no demuestra capacidad bajo carga. El chat de voz del pack no está expuesto; el propietario usa Discord. La revisión visual del selector sigue pendiente; el navegador automatizado no tenía permiso para la vista local en la prueba anterior.
 
+## Actualización: Hardcore Soulbound
+
+El 10 de noviembre de 2026 se añadió un tercer perfil independiente, Hardcore Soulbound 1.0.1 sobre Minecraft vanilla 26.3 y Java 25. Límite de Pelican 4096 MiB, heap máximo 3072 MiB y puerto TCP 25567. La descarga se verificó con el SHA512 publicado por Modrinth; no se redistribuye en el repositorio.
+
+- Preflight de lectura confirmó proveedores y cuota en la suscripción autorizada; se mantuvo el tamaño de la VM. Se ajustó el acceso administrativo a la nueva IP del propietario, conservando `/32`.
+- Se confirmó que no había jugadores antes de detener los perfiles existentes. Se respaldaron el catálogo del nodo y la base SQLite del panel. Los mundos de Paper y DeceasedCraft no se reemplazaron.
+- Vanilla completó el arranque y Fogata llegó a `ready`. Desde la consola se confirmó que estaban habilitados `vanilla` y `file/hardcore-soulbound-1.0.1.zip`. La consulta de `#pending_install HCSB.Var` devolvió 1: el pack espera al primer jugador para inicializar la partida.
+- La orden Guardar y apagar guardó jugadores y las tres dimensiones; Azure confirmó la desasignación antes del siguiente arranque.
+- El siguiente arranque desde Fogata recuperó el mundo y volvió a `ready`, con solo Soulbound ejecutándose. Hubo fallos transitorios de conexión durante ese arranque; al terminar se verificó desde la VM HTTP 200 tanto en discovery como en publickeys de Minecraft y el 401 esperado de la API Fogata sin contraseña.
+- Se ejecutaron las 63 comprobaciones locales existentes, compilación Bicep, sintaxis JavaScript y lint PHP del helper de registro. El frontend y la política de control no requirieron cambios: el catálogo ya admite IDs adicionales.
+
+No se inició una sesión de jugador para probar una muerte, el reinicio de intentos o el menú interactivo. La vida compartida conserva el valor predeterminado desactivado y puede habilitarse dentro del juego. El plazo temporal de instalación se restauró a 15 minutos.
+
 ## Límites de la prueba inicial
 
 No se inició sesión con una cuenta Microsoft/Minecraft real ni se evaluó una partida con jugadores simultáneos. El propietario debe comprobar su entrada desde Minecraft Java 26.3, consola y gestor de archivos del panel en su navegador. El tiempo de arranque puede variar según la asignación de Azure y el mundo. No se configuró una programación automática de backups del mundo; revisar la operación de backups antes de usarlo como mundo importante.

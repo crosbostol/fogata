@@ -1,4 +1,4 @@
-# Alternar Paper y un modpack
+# Alternar mundos, modpacks y datapacks
 
 Fogata admite un catálogo de servidores del mismo nodo, con **uno activo por sesión de VM**. Cada servidor conserva su mundo. El tamaño de Azure no cambia al elegir otro.
 
@@ -21,6 +21,18 @@ Pelican permite gestionar ambos desde su panel. Los arranques llevan `flock -n /
 - El chat de voz incluido escucha UDP 24454 dentro del contenedor; no se publicó ese puerto en esta primera instalación. El juego por TCP funciona independientemente. Habilitar voz requiere una asignación adicional en Wings y la regla UDP de Azure.
 
 El paquete y las recomendaciones están en [la página del autor](https://www.curseforge.com/minecraft/modpacks/deceasedcraft). Sus binarios no se redistribuyen en este repositorio.
+
+## Hardcore Soulbound: vanilla con datapack
+
+El tercer perfil utiliza Minecraft **vanilla 26.3**, Java 25 y Hardcore Soulbound **1.0.1**. El autor solo ha probado el datapack en vanilla; por eso no se instaló sobre Paper. No requiere mods ni resource packs en el cliente.
+
+- Mundo nuevo independiente, puerto TCP **25567**, límite de Pelican 4096 MiB y heap máximo 3072 MiB. Whitelist y autenticación oficial habilitadas. La whitelist se copia al crear el perfil; sus cambios posteriores son independientes.
+- ZIP original dentro de `world/datapacks/`, con versión y hash verificados contra la API de Modrinth. Los binarios no se publican en GitHub.
+- Al primer ingreso se completa la inicialización del datapack. Su menú se abre con **G** (acciones rápidas) o desde el botón del menú de pausa. Permite iniciar partidas, configurar y consultar estadísticas. Si cambiaste las teclas, revisa la asignación de acciones rápidas.
+- Predeterminados del archivo 1.0.1: una vida, dificultad difícil, regeneración natural habilitada, 10 corazones, reinicio automático de intentos y **vida compartida desactivada**. Puedes habilitarla y cambiar a español desde la configuración del pack.
+- La mecánica reinicia los intentos de este perfil. Paper y DeceasedCraft conservan sus propios mundos. El bloqueo compartido sigue permitiendo una sola JVM activa.
+
+Fuente y descarga: [Hardcore Soulbound en Modrinth](https://modrinth.com/datapack/hardcore-soulbound). Para crear otro perfil vanilla, `vm/register-vanilla.php` acepta JSON por stdin con `name`, `minecraft` y `port`, usa Java 25 y fija 4 GiB de límite/3 GiB de heap. Es una herramienta administrativa para servidores nuevos, no un instalador universal para cualquier versión de Minecraft. Después hay que instalar el datapack, aplicar `exclusive-servers.php` y registrar el perfil en ambos catálogos como se explica abajo.
 
 ## Agregar otro pack sin rehacer Fogata
 
